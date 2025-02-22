@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <cstddef>
 #include <functional>
 #include <type_traits>
 #include <utility>
@@ -40,9 +41,7 @@ public:
   template <class Y>
   explicit intrusive_ptr(intrusive_ptr<Y>&& r)
     requires (std::is_convertible_v<Y*, T*>)
-  {
-    _ptr = std::exchange(r._ptr, nullptr);
-  }
+      : _ptr(std::exchange(r._ptr, nullptr)) {}
 
   ~intrusive_ptr() {
     if (get() != nullptr) {
@@ -52,7 +51,7 @@ public:
 
   intrusive_ptr& operator=(const intrusive_ptr& r) {
     if (this != &r) {
-      intrusive_ptr(r).swap(*this);
+      *this->operator= <T>(r);
     }
     return *this;
   }
@@ -72,7 +71,7 @@ public:
 
   intrusive_ptr& operator=(intrusive_ptr&& r) noexcept {
     if (this != &r) {
-      intrusive_ptr(std::move(r)).swap(*this);
+      *this->operator= <T>(std::move(r));
     }
     return *this;
   }
@@ -183,12 +182,12 @@ public:
     return *this;
   }
 
-  unsigned int use_count() const noexcept {
+  std::size_t use_count() const noexcept {
     return _counter.load(std::memory_order_acquire);
   }
 
   void add_ref() const noexcept {
-    _counter.fetch_add(1, std::memory_order_relaxed);
+    _counter.fetch_add(1, std::memory_order_release);
   }
 
   void release() const noexcept {
@@ -199,7 +198,7 @@ protected:
   ~intrusive_ref_counter() = default;
 
 private:
-  mutable std::atomic<unsigned int> _counter{0};
+  mutable std::atomic<std::size_t> _counter{0};
 };
 
 template <class Derived>
